@@ -4,41 +4,43 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Category;
-use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 
 class CatalogController extends Controller
 {
     public function index()
     {
-        $categories = Category::all();
-        $user = Auth::user(); 
-        return view('dashboard', compact('categories', 'user'));
+        $produks = Category::all();
+        return view('dashboard', compact('produks'));
     }
 
     public function store(Request $request)
     {
-        // 1. Validasi Input
         $request->validate([
-            'nama_produk' => 'required|min:3',
+            'nama_produk' => 'required|string|max:255',
             'foto' => 'required|image|mimes:jpeg,png,jpg|max:2048',
         ]);
 
         if ($request->hasFile('foto')) {
-            $file = $request->file('foto');
-            
-            // 2. Buat nama file unik
-            $nama_file = time() . "_" . $file->getClientOriginalName();
-            
-            // 3. Simpan ke storage/app/public/uploads
-            $file->storeAs('uploads', $nama_file, 'public');
-
-            // 4. Simpan ke database (Model Category)
-            Category::create([
-                'name' => $request->nama_produk, 
-                'image' => $nama_file,           
-            ]);
-
-            return redirect()->back()->with('success', 'Produk berhasil ditambahkan!');
+            $path = $request->file('foto')->store('produk', 'public');
         }
+
+        // Perbaikan: Mapping dari input 'nama_produk' ke kolom database 'name'
+        Category::create([
+            'name'  => $request->nama_produk,
+            'image' => $path ?? null,
+        ]);
+
+        return redirect()->back()->with('success', 'Produk berhasil ditambahkan!');
+    }
+
+    public function destroy($id)
+    {
+        $produk = Category::findOrFail($id);
+        if ($produk->image) {
+            Storage::disk('public')->delete($produk->image);
+        }
+        $produk->delete();
+        return redirect()->back()->with('success', 'Produk berhasil dihapus!');
     }
 }
