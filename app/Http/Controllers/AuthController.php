@@ -9,11 +9,9 @@ use Illuminate\Support\Facades\Auth;
 
 class AuthController extends Controller
 {
-    
     public function showLogin() { return view('auth.login'); }
     public function showRegister() { return view('auth.register'); }
 
-    
     public function register(Request $request)
     {
         $request->validate([
@@ -25,31 +23,34 @@ class AuthController extends Controller
         User::create([
             'name' => $request->name,
             'email' => $request->email,
-            // Poin 5: Kata sandi dienkripsi aman (Hashing)
-            'password' => Hash::make($request->password),
+            'password' => Hash::make($request->password), // Password di-hash
         ]);
 
-        return redirect()->route('login')->with('success', 'Daftar berhasil! Silakan Login.');
+        return redirect()->route('login')->with('success', 'Akun berhasil dibuat! Silakan Login.');
     }
 
-    
+    public function login(Request $request)
+    {
+        $credentials = $request->validate([
+            'email' => 'required|email',
+            'password' => 'required',
+        ]);
 
-     public function login(Request $request)
-{
-    $credentials = $request->validate([
-        'email' => 'required|email',
-        'password' => 'required',
-    ]);
+        // DEBUG: Cek apakah email ada di database
+        $user = User::where('email', $request->email)->first();
+        if (!$user) {
+            return back()->with('error', 'Email tidak terdaftar!');
+        }
 
-    if (Auth::attempt($credentials)) {
-        $request->session()->regenerate();
-        
-        return redirect()->intended('/'); 
+        if (Auth::attempt($credentials)) {
+            $request->session()->regenerate();
+            return redirect()->intended('/dashboard'); 
+        }
+
+        // Jika email ada tapi password salah
+        return back()->with('error', 'Password salah!');
     }
 
-    return back()->withErrors(['email' => 'Email atau password salah!']);
-}
-    // Logika Keluar (Logout)
     public function logout(Request $request)
     {
         Auth::logout();
