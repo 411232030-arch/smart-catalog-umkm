@@ -6,24 +6,17 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('produk', function (Blueprint $table) {
             $table->id();
-            $table->string('name');           // Nama Produk
-            $table->decimal('price', 12, 2);  // Harga Produk
-            $table->string('category')->nullable(); // Kategori
-            $table->text('description')->nullable(); // Deskripsi
+            $table->string('nama_kopi');
+            $table->integer('harga');
+            $table->string('foto_kopi')->nullable();
             $table->timestamps();
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('produk');
