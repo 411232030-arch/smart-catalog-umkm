@@ -37,16 +37,21 @@
 
     <!-- Konten Laporan Keuangan -->
     <main class="flex-1 p-6 md:p-8">
-        <header class="mb-8 flex justify-between items-center">
-            <div>
-                <h2 class="text-2xl font-bold text-amber-950">Laporan Keuangan</h2>
-                <p class="text-sm text-slate-500">Pantau omzet penjualan kedai Anda hari ini.</p>
-            </div>
-            <form action="{{ route('laporan.reset') }}" method="POST" onsubmit="return confirm('Apakah Anda yakin ingin mengosongkan riwayat kas pendapatan kedai?')">
-                @csrf @method('DELETE')
-                <button type="submit" class="bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition cursor-pointer shadow-sm">Kosongkan Data</button>
-            </form>
-        </header>
+       <header class="mb-8 flex justify-between items-center">
+    <div>
+        <h2 class="text-2xl font-bold text-amber-950">Laporan Keuangan</h2>
+        <p class="text-sm text-slate-500">Pantau omzet penjualan kedai Anda hari ini.</p>
+    </div>
+    <div class="flex items-center gap-3">
+        <a href="{{ route('laporan.export') }}" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition shadow-sm inline-flex items-center gap-2">
+            <i class="fas fa-file-excel"></i> Export ke Excel
+        </a>
+        <form action="{{ route('laporan.reset') }}" method="POST" onsubmit="return confirm('Apakah Anda yakin ingin mengosongkan riwayat kas pendapatan kedai?')">
+            @csrf @method('DELETE')
+            <button type="submit" class="bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition cursor-pointer shadow-sm">Kosongkan Data</button>
+        </form>
+    </div>
+</header>
 
         @if(session('success'))
             <div class="mb-6 p-4 bg-emerald-100 border border-emerald-200 text-emerald-800 rounded-xl flex items-center gap-2 text-sm font-medium">
