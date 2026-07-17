@@ -4,26 +4,43 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\User;
+use App\Services\AuthSecurityService;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Auth;
 
 class AuthController extends Controller
 {
-    public function showLogin() { return view('auth.login'); }
-    public function showRegister() { return view('auth.register'); }
+    protected $authSecurityService;
+
+    public function __construct(AuthSecurityService $authSecurityService)
+    {
+        $this->authSecurityService = $authSecurityService;
+    }
+
+    public function showLogin()
+    {
+        return view('auth.login');
+    }
+
+    public function showRegister()
+    {
+        return view('auth.register');
+    }
 
     public function register(Request $request)
     {
         $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|unique:users',
-            'password' => 'required|min:6|confirmed',
+            'password' => 'required|min:8|confirmed|regex:/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/',
+        ], [
+            'password.regex' => 'Password harus mengandung huruf besar, huruf kecil, dan angka',
         ]);
 
         User::create([
             'name' => $request->name,
             'email' => $request->email,
-            'password' => Hash::make($request->password), // Password di-hash
+            'password' => Hash::make($request->password),
         ]);
 
         return redirect()->route('login')->with('success', 'Akun berhasil dibuat! Silakan Login.');
@@ -31,24 +48,40 @@ class AuthController extends Controller
 
     public function login(Request $request)
     {
-        $credentials = $request->validate([
+        $email = $request->email;
+
+        // Check login rate limiting
+        if (!$this->authSecurityService->canAttemptLogin($email)) {
+            $minutes = $request->session()->get('lockout_time', 1);
+            return back()->with('error', "Terlalu banyak percobaan login. Silakan coba lagi dalam {$minutes} menit.");
+        }
+
+        $request->validate([
             'email' => 'required|email',
             'password' => 'required',
         ]);
 
-        // DEBUG: Cek apakah email ada di database
-        $user = User::where('email', $request->email)->first();
+        $user = $this->authSecurityService->verifyCredentials($email, $request->password);
+
         if (!$user) {
-            return back()->with('error', 'Email tidak terdaftar!');
+            $this->authSecurityService->recordFailedAttempt($email);
+            $remaining = $this->authSecurityService->getRemainingAttempts($email);
+
+            if ($remaining > 0) {
+                return back()->with('warning', "Email atau password salah. Sisa percobaan: {$remaining}");
+            } else {
+                return back()->with('error', 'Akun Anda terkunci karena terlalu banyak percobaan login yang gagal. Coba lagi dalam 15 menit.');
+            }
         }
 
-        if (Auth::attempt($credentials)) {
-            $request->session()->regenerate();
-            return redirect()->intended('/dashboard'); 
-        }
+        
+        $this->authSecurityService->clearAttempts($email);
 
-        // Jika email ada tapi password salah
-        return back()->with('error', 'Password salah!');
+       
+        Auth::login($user, $request->remember);
+        $request->session()->regenerate();
+
+        return redirect()->intended('/dashboard');
     }
 
     public function logout(Request $request)
@@ -56,6 +89,6 @@ class AuthController extends Controller
         Auth::logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
-        return redirect('/login');
+        return redirect('/login')->with('success', 'Anda berhasil logout');
     }
 }

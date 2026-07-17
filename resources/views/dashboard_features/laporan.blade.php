@@ -46,8 +46,8 @@
         <a href="{{ route('laporan.export') }}" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition shadow-sm inline-flex items-center gap-2">
             <i class="fas fa-file-excel"></i> Export ke Excel
         </a>
-        <form action="{{ route('laporan.reset') }}" method="POST" onsubmit="return confirm('Apakah Anda yakin ingin mengosongkan riwayat kas pendapatan kedai?')">
-            @csrf @method('DELETE')
+            <form action="{{ route('laporan.reset') }}" method="POST" onsubmit="return confirm('Apakah Anda yakin ingin mengosongkan riwayat kas pendapatan kedai?')">
+            @csrf
             <button type="submit" class="bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition cursor-pointer shadow-sm">Kosongkan Data</button>
         </form>
     </div>

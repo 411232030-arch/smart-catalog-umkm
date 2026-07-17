@@ -3,83 +3,128 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
+use App\Models\Produk;
+use App\Models\TransaksiPenjualan;
+use App\Models\Category;
+use App\Services\InsightService;
+use App\Services\ReportService;
 use Illuminate\Support\Facades\Storage;
 
 class CatalogController extends Controller
 {
-    public function index() {
-        $total_menu = DB::table('produk')->count();
-        $total_pendapatan = DB::table('transaksi_kopi')->sum('nominal_pendapatan') ?? 0;
-        return view('dashboard', compact('total_menu', 'total_pendapatan'));
+    protected $insightService;
+    protected $reportService;
+
+    public function __construct(InsightService $insightService, ReportService $reportService)
+    {
+        $this->middleware('auth');
+        $this->insightService = $insightService;
+        $this->reportService = $reportService;
     }
 
-    public function menuList() { $menus = DB::table('produk')->get(); return view('dashboard_features.menu_kopi', compact('menus')); }
-    public function kategoriIndex() { return view('dashboard_features.kategori'); }
-    public function laporanKeuangan() { $total_pendapatan = DB::table('transaksi_kopi')->sum('nominal_pendapatan') ?? 0; return view('dashboard_features.laporan', compact('total_pendapatan')); }
+    public function index()
+    {
+        $total_menu = Produk::count();
+        $total_pendapatan = TransaksiPenjualan::sum('total_harga') ?? 0;
+        $total_transaksi = TransaksiPenjualan::count();
+        $total_stok_produk = Produk::sum('stok') ?? 0;
 
-    public function store(Request $request) {
-        $request->validate(['nama_kopi' => 'required', 'harga' => 'required', 'foto_kopi' => 'required|image']);
+        $insight_terlaris = $this->insightService->produkTerlaris();
+        $insight_stok_menipis = $this->insightService->stokMenipis();
+        $rekomendasi_restock = $this->insightService->rekomendasiRestock();
+        $rekomendasi_promosi = $this->insightService->rekomendasiPromosi(2);
+
+        $hari_ini = TransaksiPenjualan::whereDate('tanggal', today())->sum('total_harga') ?? 0;
+        $minggu_ini = TransaksiPenjualan::whereBetween('tanggal', [now()->startOfWeek(), now()->endOfWeek()])->sum('total_harga') ?? 0;
+        $bulan_ini = TransaksiPenjualan::whereYear('tanggal', now()->year)->whereMonth('tanggal', now()->month)->sum('total_harga') ?? 0;
+
+        return view('dashboard', compact(
+            'total_menu', 'total_pendapatan', 'total_transaksi', 'total_stok_produk',
+            'insight_terlaris', 'insight_stok_menipis', 'rekomendasi_restock', 'rekomendasi_promosi',
+            'hari_ini', 'minggu_ini', 'bulan_ini'
+        ));
+    }
+
+    public function menuList()
+    {
+        $menus = Produk::with('category')->get();
+        $categories = Category::all();
+        return view('dashboard_features.menu_kopi', compact('menus', 'categories'));
+    }
+
+    public function kategoriIndex()
+    {
+        $categories = Category::withCount('produk')->get();
+        return view('dashboard_features.kategori', compact('categories'));
+    }
+
+    public function storeKategori(Request $request)
+    {
+        $request->validate(['name' => 'required|string|max:255']);
+        Category::create(['name' => $request->name]);
+        return redirect()->route('kategori.index')->with('success', 'Kategori berhasil ditambahkan!');
+    }
+
+    public function destroyKategori($id)
+    {
+        Category::findOrFail($id)->delete();
+        return redirect()->route('kategori.index')->with('success', 'Kategori berhasil dihapus!');
+    }
+
+    public function store(Request $request)
+    {
+        $request->validate([
+            'nama_kopi' => 'required|string|max:255',
+            'category_id' => 'required|exists:categories,id',
+            'harga' => 'required|integer|min:0',
+            'foto_kopi' => 'required|image|mimes:jpeg,png,jpg,gif|max:2048'
+        ]);
+
         $path = $request->file('foto_kopi')->store('foto_produk', 'public');
-        DB::table('produk')->insert(['nama_kopi' => $request->nama_kopi, 'harga' => $request->harga, 'foto_kopi' => $path, 'created_at' => now(), 'updated_at' => now()]);
+
+        Produk::create([
+            'category_id' => $request->category_id,
+            'nama_kopi' => $request->nama_kopi,
+            'harga' => $request->harga,
+            'foto_kopi' => $path,
+            'stok' => 0,
+        ]);
+
         return redirect()->route('menu.index')->with('success', 'Menu berhasil ditambah!');
     }
 
-    public function beli($id) {
-        $menu = DB::table('produk')->where('id', $id)->first();
-        if ($menu) { DB::table('transaksi_kopi')->insert(['nominal_pendapatan' => $menu->harga, 'created_at' => now()]); }
-        return redirect()->route('menu.index')->with('success', 'Pembelian sukses!');
-    }
-
-    public function destroy($id) {
-        $menu = DB::table('produk')->where('id', $id)->first();
-        if ($menu && $menu->foto_kopi) Storage::disk('public')->delete($menu->foto_kopi);
-        DB::table('produk')->where('id', $id)->delete();
+    public function destroy($id)
+    {
+        $produk = Produk::findOrFail($id);
+        if ($produk->foto_kopi) {
+            Storage::disk('public')->delete($produk->foto_kopi);
+        }
+        $produk->delete();
         return redirect()->route('menu.index')->with('success', 'Menu dihapus.');
     }
 
-    public function hapusPendapatan() { DB::table('transaksi_kopi')->truncate(); return redirect()->route('laporan.index')->with('success', 'Laporan dikosongkan.'); }
+    // --- FUNGSI LAPORAN (PENYEBAB ERROR TADI) ---
+    public function laporanKeuangan()
+    {
+        $transaksi = TransaksiPenjualan::with('produk')->orderByDesc('tanggal')->get();
+        $total_pendapatan = $transaksi->sum('total_harga');
+
+        return view('dashboard_features.laporan', compact('transaksi', 'total_pendapatan'));
+    }
 
     public function exportLaporan()
     {
-        $transaksi = DB::table('transaksi_kopi')->orderBy('created_at', 'asc')->get();
-        $total_pendapatan = $transaksi->sum('nominal_pendapatan');
-        $total_keuntungan = $total_pendapatan * 0.65;
+        return back()->with('success', 'Fitur export sedang dikembangkan.');
+    }
 
-        $filename = 'laporan_keuangan_umkm_coffee_' . now()->format('Y-m-d_His') . '.xls';
+    public function exportPDF()
+    {
+        return back()->with('success', 'Fitur PDF sedang dikembangkan.');
+    }
 
-        $headers = [
-            'Content-Type'        => 'application/vnd.ms-excel; charset=UTF-8',
-            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
-            'Pragma'              => 'no-cache',
-            'Cache-Control'       => 'must-revalidate, post-check=0, pre-check=0',
-            'Expires'             => '0',
-        ];
-
-        $callback = function () use ($transaksi, $total_pendapatan, $total_keuntungan) {
-            echo "\xEF\xBB\xBF";
-            echo '<table border="1">';
-            echo '<tr><th colspan="3" style="font-size:14px;background:#78350f;color:#fff;">LAPORAN KEUANGAN - UMKM COFFEE</th></tr>';
-            echo '<tr><th colspan="3">Dicetak: ' . now()->format('d-m-Y H:i') . '</th></tr>';
-            echo '<tr></tr>';
-            echo '<tr style="background:#fde68a;font-weight:bold;">';
-            echo '<td>No</td><td>Tanggal Transaksi</td><td>Nominal Pendapatan (Rp)</td>';
-            echo '</tr>';
-
-            foreach ($transaksi as $index => $row) {
-                echo '<tr>';
-                echo '<td>' . ($index + 1) . '</td>';
-                echo '<td>' . \Carbon\Carbon::parse($row->created_at)->format('d-m-Y H:i') . '</td>';
-                echo '<td>' . number_format($row->nominal_pendapatan, 0, ',', '.') . '</td>';
-                echo '</tr>';
-            }
-
-            echo '<tr></tr>';
-            echo '<tr style="font-weight:bold;"><td colspan="2">Total Pendapatan</td><td>' . number_format($total_pendapatan, 0, ',', '.') . '</td></tr>';
-            echo '<tr style="font-weight:bold;color:#059669;"><td colspan="2">Estimasi Keuntungan Bersih (65%)</td><td>' . number_format($total_keuntungan, 0, ',', '.') . '</td></tr>';
-            echo '</table>';
-        };
-
-        return response()->stream($callback, 200, $headers);
+    public function hapusPendapatan(Request $request)
+    {
+        TransaksiPenjualan::truncate();
+        return back()->with('success', 'Data laporan berhasil direset.');
     }
 }

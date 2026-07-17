@@ -25,16 +25,57 @@
             <a href="{{ route('laporan.index') }}" class="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-amber-900/40 text-amber-300"><i class="fas fa-wallet w-5 text-center"></i> Keuangan</a>
         </nav>
     </aside>
+
     <!-- KONTEN -->
     <main class="flex-1 p-6 md:p-8 max-w-7xl mx-auto w-full">
         <header class="mb-8 border-b border-amber-200/60 pb-5">
             <h2 class="text-2xl font-bold text-amber-950 flex items-center gap-2"><i class="fas fa-tags text-amber-700"></i> Pengaturan Kategori Menu</h2>
             <p class="text-sm text-slate-500">Kelompokkan produk kopi Anda (misal: Es Kopi, Hot Coffee, Non-Coffee).</p>
         </header>
-        <div class="bg-white p-8 rounded-2xl shadow-sm border border-amber-100 text-center text-slate-400">
-            <i class="fas fa-folder-open text-5xl text-amber-200 mb-3"></i>
-            <p class="font-medium text-slate-600">Fitur Manajemen Kategori</p>
-            <p class="text-xs text-slate-400 max-w-sm mx-auto mt-1">Kategori default saat ini otomatis disesuaikan berdasarkan variasi menu kopi yang Anda tambahkan.</p>
+
+        <!-- FORM TAMBAH -->
+        <div class="bg-white p-6 rounded-2xl shadow-sm border border-amber-100 mb-6">
+            <form action="{{ route('kategori.store') }}" method="POST" class="flex gap-4">
+                @csrf
+                <input type="text" name="name" placeholder="Nama Kategori Baru..." required 
+                       class="flex-1 border border-amber-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-amber-500 outline-none">
+                <button type="submit" class="bg-amber-800 text-white px-6 py-2.5 rounded-xl hover:bg-amber-900 transition font-medium">
+                    <i class="fas fa-plus mr-2"></i>Tambah
+                </button>
+            </form>
+        </div>
+
+        <!-- DAFTAR KATEGORI -->
+        <div class="bg-white rounded-2xl shadow-sm border border-amber-100 overflow-hidden">
+            <table class="w-full text-left">
+                <thead class="bg-amber-50">
+                    <tr>
+                        <th class="py-4 px-6 font-semibold text-amber-900">Nama Kategori</th>
+                        <th class="py-4 px-6 font-semibold text-amber-900 text-center">Jumlah Produk</th>
+                        <th class="py-4 px-6 font-semibold text-amber-900 text-center">Aksi</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-amber-100">
+                    @forelse($categories as $cat)
+                    <tr>
+                        <td class="py-4 px-6 font-medium">{{ $cat->name }}</td>
+                        <td class="py-4 px-6 text-center text-slate-500">{{ $cat->produk_count }} produk</td>
+                        <td class="py-4 px-6 text-center">
+                            <form action="{{ route('kategori.destroy', $cat->id) }}" method="POST" onsubmit="return confirm('Yakin ingin menghapus kategori ini?')">
+                                @csrf @method('DELETE')
+                                <button type="submit" class="text-red-500 hover:text-red-700 transition">
+                                    <i class="fas fa-trash-alt"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    @empty
+                    <tr>
+                        <td colspan="3" class="py-10 text-center text-slate-400">Belum ada kategori yang ditambahkan.</td>
+                    </tr>
+                    @endforelse
+                </tbody>
+            </table>
         </div>
     </main>
 </body>
