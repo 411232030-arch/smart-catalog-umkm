@@ -112,15 +112,40 @@ class CatalogController extends Controller
         return view('dashboard_features.laporan', compact('transaksi', 'total_pendapatan'));
     }
 
-    public function exportLaporan()
+    public function exportLaporan(Request $request)
     {
-        return back()->with('success', 'Fitur export sedang dikembangkan.');
+        $filters = [
+            'start_date' => $request->input('start_date'),
+            'end_date' => $request->input('end_date'),
+        ];
+
+        $callback = $this->reportService->generateExcel($filters);
+
+        $filename = 'laporan_penjualan_' . now()->format('Y-m-d_His') . '.xlsx';
+
+        return response()->streamDownload(
+            function () use ($callback) {
+                $callback();
+            },
+            $filename,
+            [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            ]
+        );
     }
 
-    public function exportPDF()
+    public function exportPDF(Request $request)
     {
-        return back()->with('success', 'Fitur PDF sedang dikembangkan.');
+        $filters = [
+            'start_date' => $request->input('start_date'),
+            'end_date' => $request->input('end_date'),
+        ];
+
+        $pdf = $this->reportService->generatePDF($filters);
+
+        return $pdf->download('laporan_penjualan_' . now()->format('Y-m-d_His') . '.pdf');
     }
+
 
     public function hapusPendapatan(Request $request)
     {
